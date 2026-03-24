@@ -1,5 +1,5 @@
 const STORAGE_KEY = 'AICB_APP_URL'
-const DEFAULT_APP_URL = 'https://extension-j9vzc0xrm-abreuclarianas-projects.vercel.app'
+const DEFAULT_APP_URL = 'https://extension-ai-ruddy.vercel.app'
 
 /** @type {HTMLInputElement | null} */
 const appUrlInput = document.getElementById('appUrl')
