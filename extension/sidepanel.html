@@ -1,0 +1,65 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>AI Context Bridge</title>
+    <style>
+      html,
+      body {
+        height: 100%;
+        margin: 0;
+      }
+      .wrap {
+        height: 100%;
+        display: grid;
+        grid-template-rows: auto 1fr;
+        background: #fbfaff;
+      }
+      header {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 10px 10px;
+        border-bottom: 1px solid #ebe7f5;
+        background: #fff;
+        font: 12px/1.2 system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        color: #4a4666;
+      }
+      header input {
+        flex: 1;
+        padding: 6px 8px;
+        border: 1px solid #ebe7f5;
+        border-radius: 10px;
+        outline: none;
+      }
+      header button {
+        padding: 6px 10px;
+        border: 1px solid #ebe7f5;
+        background: #7b39ed;
+        color: white;
+        border-radius: 10px;
+        font-weight: 600;
+        cursor: pointer;
+      }
+      iframe {
+        width: 100%;
+        height: 100%;
+        border: 0;
+        background: #fbfaff;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <header>
+        <span title="App URL (Vercel ou localhost)">App</span>
+        <input id="appUrl" placeholder="http://localhost:5173" />
+        <button id="saveUrl">Save</button>
+      </header>
+      <iframe id="appFrame" title="AI Context Bridge App"></iframe>
+    </div>
+    <script src="sidepanel.js"></script>
+  </body>
+</html>
+

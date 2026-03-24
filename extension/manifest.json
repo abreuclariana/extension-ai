@@ -1,0 +1,29 @@
+{
+  "manifest_version": 3,
+  "name": "AI Context Bridge (LinkedIn)",
+  "version": "0.1.0",
+  "description": "Captura contexto do LinkedIn e envia para um side panel com geração via IA.",
+  "permissions": ["activeTab", "storage", "scripting", "sidePanel"],
+  "host_permissions": ["https://www.linkedin.com/*"],
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["https://www.linkedin.com/*"],
+      "js": ["contentScript.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "side_panel": {
+    "default_path": "sidepanel.html"
+  },
+  "action": {
+    "default_title": "AI Context Bridge"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; frame-src http://localhost:5173 https://*.vercel.app;"
+  }
+}
+

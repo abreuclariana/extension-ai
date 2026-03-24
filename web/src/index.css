@@ -1,0 +1,40 @@
+@import "tailwindcss";
+
+@theme {
+  /* Brand */
+  --color-brand: #7b39ed;
+  --color-brand-weak: #efe6ff;
+
+  /* Surfaces */
+  --color-surface: #ffffff;
+  --color-surface-2: #fbfaff;
+  --color-border: #ebe7f5;
+
+  /* Text */
+  --color-ink: #0f1020;
+  --color-ink-2: #4a4666;
+  --color-ink-3: #6c6791;
+
+  /* Shadows */
+  --shadow-soft: 0 10px 30px rgba(15, 16, 32, 0.08);
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--color-surface-2);
+  color: var(--color-ink);
+}
+
+/* Side panel: keep things compact */
+#root {
+  min-height: 100%;
+}
