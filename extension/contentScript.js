@@ -10,11 +10,14 @@
 
 /** @type {HTMLElement | null} */
 let lastFocusedEditor = null
+const LAST_CONTEXT_KEY = 'AICB_LAST_CONTEXT_MSG'
 
 function isEditableElement(el) {
   if (!el || el.nodeType !== Node.ELEMENT_NODE) return false
   const element = /** @type {HTMLElement} */ (el)
-  if (element.getAttribute?.('contenteditable') === 'true') return true
+  if (element.hasAttribute?.('contenteditable')) return true
+  if (element.getAttribute?.('role') === 'textbox') return true
+  if (element.matches?.('.editor-content, .ql-editor, [data-placeholder]')) return true
   const tag = element.tagName?.toLowerCase()
   return tag === 'textarea' || tag === 'input'
 }
@@ -22,7 +25,17 @@ function isEditableElement(el) {
 function getEditorFromEventTarget(target) {
   if (!target || target.nodeType !== Node.ELEMENT_NODE) return null
   const el = /** @type {HTMLElement} */ (target)
-  const editable = el.closest?.('[contenteditable="true"], textarea, input')
+  const editable = el.closest?.(
+    [
+      '[contenteditable]',
+      '[role="textbox"]',
+      '.editor-content',
+      '.ql-editor',
+      '[data-placeholder]',
+      'textarea',
+      'input',
+    ].join(','),
+  )
   return /** @type {HTMLElement | null} */ (editable)
 }
 
@@ -113,8 +126,14 @@ function buildContext(editorEl) {
 }
 
 async function sendContext(context) {
+  const msg = { type: 'AICB_POST_CONTEXT', payload: { context } }
   try {
-    await chrome.runtime.sendMessage({ type: 'AICB_POST_CONTEXT', payload: { context } })
+    await chrome.runtime.sendMessage(msg)
+  } catch {
+    // ignored
+  }
+  try {
+    await chrome.storage.local.set({ [LAST_CONTEXT_KEY]: msg })
   } catch {
     // ignored
   }
@@ -129,7 +148,8 @@ function notifyIfEditorFocused(target) {
 
   lastFocusedEditor = editor
   const ctx = buildContext(editor)
-  if (ctx.text) void sendContext(ctx)
+  // Always send once an editor is detected; panel can still render author/url even on sparse posts.
+  void sendContext(ctx)
 }
 
 function dispatchLinkedInEvents(el) {
@@ -182,12 +202,29 @@ function handleInsertText(text) {
     return { ok: true }
   }
 
-  if (target.getAttribute?.('contenteditable') === 'true') {
+  if (target.hasAttribute?.('contenteditable') || target.getAttribute?.('role') === 'textbox') {
     insertIntoContentEditable(target, text)
     return { ok: true }
   }
 
   return { ok: false, error: 'Unsupported editor element' }
+}
+
+function requestContextSnapshot() {
+  const active = document.activeElement
+  const editor =
+    (active && isEditableElement(active) ? /** @type {HTMLElement} */ (active) : null) ||
+    getEditorFromEventTarget(active) ||
+    lastFocusedEditor ||
+    /** @type {HTMLElement | null} */ (
+      document.querySelector('[contenteditable], [role="textbox"], .editor-content, .ql-editor')
+    ) ||
+    /** @type {HTMLElement | null} */ (document.querySelector('article'))
+
+  if (!editor) return { ok: false, error: 'No candidate element found to capture context' }
+  const ctx = buildContext(editor)
+  void sendContext(ctx)
+  return { ok: true, context: ctx }
 }
 
 // Detect focus via click + focusin (LinkedIn uses many nested nodes)
@@ -209,14 +246,21 @@ document.addEventListener(
 // Receive insert command from background
 chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (!msg || typeof msg !== 'object') return
-  if (msg.type !== 'AICB_INSERT_TEXT') return
-  const text = msg?.payload?.text
-  if (typeof text !== 'string') {
-    sendResponse?.({ ok: false, error: 'Invalid payload.text' })
+  if (msg.type === 'AICB_REQUEST_CONTEXT') {
+    const result = requestContextSnapshot()
+    sendResponse?.(result)
+    return true
+  }
+
+  if (msg.type === 'AICB_INSERT_TEXT') {
+    const text = msg?.payload?.text
+    if (typeof text !== 'string') {
+      sendResponse?.({ ok: false, error: 'Invalid payload.text' })
+      return
+    }
+    const result = handleInsertText(text)
+    sendResponse?.(result)
     return
   }
-  const result = handleInsertText(text)
-  sendResponse?.(result)
-  return true
 })
 

@@ -1,5 +1,6 @@
 const STORAGE_KEY = 'AICB_APP_URL'
 const DEFAULT_APP_URL = 'https://extension-ai-ruddy.vercel.app'
+const LAST_CONTEXT_KEY = 'AICB_LAST_CONTEXT_MSG'
 
 /** @type {HTMLInputElement | null} */
 const appUrlInput = document.getElementById('appUrl')
@@ -7,6 +8,14 @@ const appUrlInput = document.getElementById('appUrl')
 const appFrame = document.getElementById('appFrame')
 /** @type {HTMLButtonElement | null} */
 const saveUrlBtn = document.getElementById('saveUrl')
+/** @type {HTMLButtonElement | null} */
+const captureNowBtn = document.getElementById('captureNow')
+/** @type {HTMLDivElement | null} */
+const bridgeStatus = document.getElementById('bridgeStatus')
+
+function setStatus(text) {
+  if (bridgeStatus) bridgeStatus.textContent = `Bridge: ${text}`
+}
 
 function getOrigin(url) {
   try {
@@ -42,7 +51,18 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (!msg || typeof msg !== 'object') return
 
   if (msg.type === 'AICB_POST_CONTEXT') {
+    setStatus('context received (runtime)')
     postToApp(msg)
+  }
+})
+
+// Fallback channel: receive latest context from storage updates.
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName !== 'local') return
+  const next = changes?.[LAST_CONTEXT_KEY]?.newValue
+  if (next?.type === 'AICB_POST_CONTEXT') {
+    setStatus('context received (storage)')
+    postToApp(next)
   }
 })
 
@@ -56,12 +76,54 @@ window.addEventListener('message', (ev) => {
   }
 })
 
-saveUrlBtn?.addEventListener('click', () => void saveAppUrl())
+saveUrlBtn?.addEventListener('click', async () => {
+  await saveAppUrl()
+  setStatus('app url saved')
+})
+captureNowBtn?.addEventListener('click', async () => {
+  setStatus('capturing...')
+  const resp = await chrome.runtime
+    .sendMessage({ type: 'AICB_REQUEST_CONTEXT' })
+    .catch((e) => ({ ok: false, error: String(e?.message || e) }))
+
+  if (!resp?.ok) {
+    setStatus(`capture failed: ${resp?.error || 'unknown error'}`)
+    return
+  }
+
+  if (resp?.context) {
+    const msg = { type: 'AICB_POST_CONTEXT', payload: { context: resp.context } }
+    postToApp(msg)
+    setStatus('captured from active tab')
+    return
+  }
+
+  setStatus('capture request sent')
+})
 void loadAppUrl().then(async () => {
   // Ask background for any cached context so the panel opens "warm".
   const msg = await chrome.runtime.sendMessage({ type: 'AICB_GET_LAST_CONTEXT' }).catch(
     () => null,
   )
-  if (msg?.type === 'AICB_POST_CONTEXT') postToApp(msg)
+  if (msg?.type === 'AICB_POST_CONTEXT') {
+    setStatus('loaded cached context')
+    postToApp(msg)
+  }
+
+  // Extra fallback: read last context from local storage.
+  const stored = await chrome.storage.local.get([LAST_CONTEXT_KEY]).catch(() => ({}))
+  const cachedMsg = stored?.[LAST_CONTEXT_KEY]
+  if (cachedMsg?.type === 'AICB_POST_CONTEXT') {
+    setStatus('loaded storage context')
+    postToApp(cachedMsg)
+  }
+
+  // Keep panel and iframe synced even if one message is dropped.
+  setInterval(async () => {
+    const recent = await chrome.runtime
+      .sendMessage({ type: 'AICB_GET_LAST_CONTEXT' })
+      .catch(() => null)
+    if (recent?.type === 'AICB_POST_CONTEXT') postToApp(recent)
+  }, 2000)
 })
 
